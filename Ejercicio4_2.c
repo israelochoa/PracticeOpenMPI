@@ -13,14 +13,22 @@ int countElement;
 
 static double dataTOTAL1[N];
 int valuemayor1=-1;
-int valuemayor2=-1;
 
-double* datad2;
+double valueGreaterPerProcessD1;
+double valueGreaterPerProcessD2;
+double* arrayvalueGreater;
+double* arrayvalueGreater2;
+double sumPartial1=0;
+double sumPartial2=0;
+double* SumTotal;
+double* SumTotal2;
+double datad2[N/4+1];
 double datad[N/4+1];
 void calculateDiagonal(int rank,int rows, double matrix[][N], int offset)
 {
     //printf("RANK %d ===>MERGE on LIST, rows: %d\n ",rank,rows);
-    
+valueGreaterPerProcessD1=-1;
+valueGreaterPerProcessD2=-1;
     printf("============CALCULATE DIAGONAL=========\n");
     int i2 = 0;
     int i3=0;
@@ -38,15 +46,21 @@ void calculateDiagonal(int rank,int rows, double matrix[][N], int offset)
             if(j==offset){
                 i2++;
                 datad[i]=matrix[i][j];
-                
-                printf("RANK %d==> element diagonal 1 [%d][%d]=%.2f\n",rank,offset,j,matrix[i][j]);
+                sumPartial1+=datad[i];
+                if(valueGreaterPerProcessD1<datad[i]){
+                    valueGreaterPerProcessD1=datad[i];
+                }
+               // printf("RANK %d==> element diagonal 1 [%d][%d]=%.2f\n",rank,offset,j,matrix[i][j]);
             }
             if((N-1)-j==N-offset-1){
                 i3++;
                
-                  //  datad2[i]=matrix[i][j];
-                
-                                printf("RANK %d==> element diagonal 2 [%d][%d]=%.2f\n",rank,offset,(N-1)-j,matrix[i][N-1-j]);
+                    datad2[i]=matrix[i][(N-1)-j];
+                    sumPartial2+=datad2[i];
+                    if(valueGreaterPerProcessD2<datad2[i]){
+                    valueGreaterPerProcessD2=datad2[i];
+                }
+                     //           printf("RANK %d==> element diagonal 2 [%d][%d]=%.2f\n",rank,offset,(N-1)-j,matrix[i][N-1-j]);
             
             }
             
@@ -60,11 +74,10 @@ void calculateDiagonal(int rank,int rows, double matrix[][N], int offset)
     }
     
     
-      // MPI_Send(datad, 1, MPI_DOUBLE,
-		//			rank, rank,
-			//		MPI_COMM_WORLD);
+      MPI_Send(datad, N, MPI_DOUBLE,0, 1,	MPI_COMM_WORLD);
+      MPI_Send(datad2, N, MPI_DOUBLE,0, 1,	MPI_COMM_WORLD);
     //
-    
+    printf("**********************************************************************************");
     
     //count(rank,datamerge,N*rows,element,data2);
 }
@@ -117,6 +130,7 @@ int main(int argc, char *argv[])
     double time_taken;
     MPI_Status status;
 
+int row_root;
     int processCount, rank_of_process;
     int rc = MPI_Init(&argc, &argv);
 
@@ -154,7 +168,7 @@ int main(int argc, char *argv[])
         {
             for (int j = 0; j < N; j++)
             {
-                matrix[i][j] = rand() % 20 + 1;
+                matrix[i][j] = rand() % 25 + 1;
             }
         }
 
@@ -176,7 +190,7 @@ int main(int argc, char *argv[])
         printf("========================================================================\n");
         // Offset variable determines the starting point of the row which sent to slave process
         offset = 0;
-        int row_root = (N % processCount == 0) ? rows : N - (rows * (processCount - 1));
+        row_root = (N % processCount == 0) ? rows : N - (rows * (processCount - 1));
         printf("rows: %d\n", rows);
         printf("rows_root: %d\n", row_root);
 
@@ -197,7 +211,7 @@ int main(int argc, char *argv[])
             // Acknowledging the number of rows
             offset += rows;
         }
-            double* datad=(double*)malloc(row_root*sizeof(double));
+            
             calculateDiagonal(rank_of_process,row_root, matrix, 0);
             
             
@@ -205,12 +219,7 @@ int main(int argc, char *argv[])
          
 
          
-        for (int i = 0; i < 4; i++)
-        {
-            /* code */
-          //MPI_Recv(&datad, 1, MPI_DOUBLE, i, i, MPI_COMM_WORLD, &status);
-            
-        }
+        
         
         //calculateSum(rank_of_process,row_root, matrix, data2);
     }
@@ -219,7 +228,7 @@ int main(int argc, char *argv[])
 
         //printf("RANK %d ==>N in slave: %d\n", rank_of_process, N);
 
-        /* code */
+        /* c calculateDiagonal(rank_of_process,row_root, matrix, 0);ode */
         // Slave process waits for the message buffers with tag 1, that Root process sent
         // Each process will receive and execute this separately on their processes
 
@@ -239,23 +248,103 @@ int main(int argc, char *argv[])
                 /* code */ printf("RANK %d , offset %d==>N matrix[row %d][colum %d]: %.2f\n", rank_of_process,offset, i, j, matrix[i][j]);
             }
         }
-        double* datad=(double*)malloc(rows*sizeof(double));
+        
         calculateDiagonal(rank_of_process,rows, matrix, offset);
 
     }
-
-    MPI_Barrier(MPI_COMM_WORLD);
-   // MPI_Gather(datad, (N/4+1), MPI_DOUBLE, data2, processCount, MPI_DOUBLE, 0,  MPI_COMM_WORLD);
 if(rank_of_process==0){
-    int sumTotal=0;
-        
-        
-        for (int i = 0; i < 1; i++)
+    SumTotal=(double*)malloc(processCount*sizeof(double));
+    SumTotal2=(double*)malloc(processCount*sizeof(double));
+    arrayvalueGreater=(double*)malloc(processCount*sizeof(double));
+    arrayvalueGreater2=(double*)malloc(processCount*sizeof(double));
+}
+MPI_Gather(&sumPartial1, 1, MPI_DOUBLE, SumTotal, 1, MPI_DOUBLE, 0,  MPI_COMM_WORLD);
+MPI_Gather(&sumPartial2, 1, MPI_DOUBLE, SumTotal2, 1, MPI_DOUBLE, 0,  MPI_COMM_WORLD);
+MPI_Gather(&valueGreaterPerProcessD1, 1, MPI_DOUBLE, arrayvalueGreater, 1, MPI_DOUBLE, 0,  MPI_COMM_WORLD);
+MPI_Gather(&valueGreaterPerProcessD2, 1, MPI_DOUBLE, arrayvalueGreater2, 1, MPI_DOUBLE, 0,  MPI_COMM_WORLD);
+    MPI_Barrier(MPI_COMM_WORLD);
+  
+if(rank_of_process==0){
+    double datad[N];
+    double dataT[N];
+    double datad2[N];
+    double dataT2[N];
+    double sumTotaldiagonal1=0;
+     double sumTotaldiagonal2=0;
+     double valueGreater=arrayvalueGreater[0];
+     double valueGreater2=arrayvalueGreater2[0];
+        for (int i = 0; i < processCount; i++)
         {
+            /* code */
+            if(i!=0){
+                if (valueGreater<arrayvalueGreater[i])
+                {
+                    /* code */
+                    valueGreater=arrayvalueGreater[i];
+                }
+                if (valueGreater2<arrayvalueGreater2[i])
+                {
+                    /* code */
+                    valueGreater2=arrayvalueGreater2[i];
+                }
+                
+            }
+             sumTotaldiagonal1+= SumTotal[i];
+             sumTotaldiagonal2+= SumTotal2[i];
+            printf("GATHERGATHERGATHERGATHER: ArraySumTotal[%d]=%.2f\n", i, SumTotal[i]);
+            printf("GATHERGATHERGATHERGATHER: ArraySumTotal2[%d]=%.2f\n", i, SumTotal2[i]);
+        MPI_Recv(&datad, N, MPI_DOUBLE, i, 1, MPI_COMM_WORLD, &status);
+        MPI_Recv(&datad2, N, MPI_DOUBLE, i, 1, MPI_COMM_WORLD, &status);
+        if(i==rank_of_process){
+                    for (int j = 0; j < row_root; j++)
+                    {
+                        /* code */
+                        dataT[j]=datad[j];
+                        dataT2[j]=datad2[j];
+                    }
+                    
+            }else{
+                for (int k = 0; k < rows; k++)
+                    {
+                        /* code */
+                        
+                        dataT[row_root]=datad[k];
+                        dataT2[row_root]=datad2[k];
+                        row_root++;
+                    }
+
+            }
+        
             
-            printf("RANK %d==> data2[%d]=%.2f\n",rank_of_process,i,data2[i]);
         }
-         
+        
+        
+        
+       printf("GRESULT FINISH SumTotal DIAGONAL1 %.2f\n", sumTotaldiagonal1);
+       printf("GRESULT FINISH SumTotal DIAGONAL2 %.2f\n", sumTotaldiagonal2);
+       if(sumTotaldiagonal1>sumTotaldiagonal2){
+            printf("GRESULT FINISH La diagonal mas grande es la diagonal 1\n");
+            for (int i = 0; i < N; i++)
+        {
+            /* code */
+            printf("\n---------------RANK %d==> DIAGONAL 1[%d]=%.2f\n",rank_of_process,i,dataT[i]);
+            
+        }
+       }else{
+        printf("GRESULT FINISH La diagonal mas grande es la diagonal 2\n");
+         for (int i = 0; i < N; i++)
+        {
+            /* code */
+            
+            printf("\n---------------RANK %d==> DIAGONAL 2[%d]=%.2f\n",rank_of_process,i,dataT2[i]);
+        }
+       }
+       printf("GRESULT FINISH El valor mas alto de las diagonal 1 es %.2f\n", valueGreater);
+       printf("GRESULT FINISH El valor mas alto de las diagonal 2 es %.2f\n", valueGreater2);
+       if (valueGreater<valueGreater2){
+            valueGreater=valueGreater2;
+       }
+       printf("GRESULT FINISH El valor mas alto de ambas diagonales es %.2f\n",valueGreater);
           
 }
     MPI_Finalize();
