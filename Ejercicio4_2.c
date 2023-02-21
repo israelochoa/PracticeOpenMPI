@@ -1,4 +1,4 @@
-
+//Autor: Israel Calva
 #include <mpi.h>
 #include <stdio.h>
 #include <stdlib.h>
